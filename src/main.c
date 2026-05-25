@@ -297,6 +297,8 @@ static bool unpack(const char *path)
 	}
 
 	fclose(in_file);
+	free(in_path);
+	free(out_path);
 	return true;
 }
 
