@@ -183,12 +183,17 @@ static bool pack(const char *path)
 			char *temp_path = find_file(parent, item.u.str.ptr);
 			free(parent);
 
+			if (temp_path == nullptr)
+			{
+				fprintf(stderr, "file not found: %s/%s\n", key, item.u.str.ptr);
+				continue;
+			}
+
 			printf("packing: %s\n", temp_path + strlen(path) + 8);
 
 			FILE *temp_file = fopen(temp_path, "rb");
 			if (temp_file == nullptr)
 			{
-				fprintf(stderr, "File not found: %s\n", temp_path);
 				free(temp_path);
 				continue;
 			}
