@@ -14,8 +14,6 @@ static constexpr uint32_t nest_magic = ((uint8_t) 'n') << 0
 	| ((uint8_t) 's') << 16
 	| ((uint8_t) 't') << 24;
 
-static constexpr uint8_t nest_version = 1;
-
 [[nodiscard]]
 static bool supported_file(const char *filename)
 {
@@ -128,8 +126,12 @@ static bool pack(const char *path)
 	printf("found %d %s\n", file_count, file_count == 1 ? "file" : "files");
 
 	// Header
+
 	fwrite(&nest_magic, sizeof(uint32_t), 1, out_file);
+
+	constexpr uint8_t nest_version = NEST_VERSION;
 	fwrite(&nest_version, sizeof(uint8_t), 1, out_file);
+
 	fwrite(&file_count, sizeof(uint32_t), 1, out_file);
 
 	uint32_t offset = ftell(out_file);

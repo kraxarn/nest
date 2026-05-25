@@ -12,4 +12,8 @@ target_include_directories(${PROJECT_NAME} PRIVATE
 	"${CMAKE_CURRENT_SOURCE_DIR}/include"
 )
 
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+	NEST_VERSION=${PROJECT_VERSION_MAJOR}
+)
+
 include(deps/tomlc17.cmake)
