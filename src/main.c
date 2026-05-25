@@ -134,7 +134,8 @@ static bool pack(const char *path)
 
 	fwrite(&file_count, sizeof(uint32_t), 1, out_file);
 
-	uint32_t offset = ftell(out_file);
+	uint32_t offset = (sizeof(uint32_t) * 2) + sizeof(uint8_t)        // Header
+		+ (((sizeof(uint32_t) * 3) + sizeof(uint16_t)) * file_count); // File descriptions
 
 	for (int32_t tt = 0; tt < assets.u.tab.size; tt++)
 	{
