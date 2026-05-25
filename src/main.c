@@ -125,6 +125,12 @@ static bool pack(const char *path)
 
 	printf("found %d %s\n", file_count, file_count == 1 ? "file" : "files");
 
+	if (file_count == 0)
+	{
+		fclose(out_file);
+		return false;
+	}
+
 	// Header
 
 	fwrite(&nest_magic, sizeof(uint32_t), 1, out_file);
@@ -133,6 +139,9 @@ static bool pack(const char *path)
 	fwrite(&nest_version, sizeof(uint8_t), 1, out_file);
 
 	fwrite(&file_count, sizeof(uint32_t), 1, out_file);
+
+	size_t current_file = 0;
+	auto files = (FILE**) calloc(file_count, sizeof(FILE*));
 
 	uint32_t offset = (sizeof(uint32_t) * 2) + sizeof(uint8_t)        // Header
 		+ (((sizeof(uint32_t) * 3) + sizeof(uint16_t)) * file_count); // File descriptions
@@ -161,6 +170,8 @@ static bool pack(const char *path)
 			char *temp_path = find_file(parent, item.u.str.ptr);
 			free(parent);
 
+			printf("packing: %s\n", temp_path + strlen(path) + 8);
+
 			FILE *temp_file = fopen(temp_path, "rb");
 			if (temp_file == nullptr)
 			{
@@ -169,9 +180,9 @@ static bool pack(const char *path)
 				continue;
 			}
 
+			files[current_file++] = temp_file;
 			free(temp_path);
 			const uint32_t temp_size = file_size(temp_file);
-			fclose(temp_file);
 
 			// File description
 
@@ -188,54 +199,30 @@ static bool pack(const char *path)
 		}
 	}
 
-	for (int32_t tt = 0; tt < assets.u.tab.size; tt++)
+	for (size_t i = 0; i < file_count; i++)
 	{
-		const char *key = assets.u.tab.key[tt];
-		const toml_datum_t value = assets.u.tab.value[tt];
+		FILE *file = files[i];
 
-		if (value.type != TOML_ARRAY)
+		// File data
+
+		constexpr size_t buffer_size = 8192;
+		uint8_t buffer[buffer_size];
+
+		size_t read = 0;
+		while ((read = fread(buffer, sizeof(uint8_t), buffer_size, file)) > 0)
 		{
-			continue;
-		}
-
-		for (int32_t aa = 0; aa < value.u.arr.size; aa++)
-		{
-			const toml_datum_t item = value.u.arr.elem[aa];
-			if (item.type != TOML_STRING)
-			{
-				continue;
-			}
-
-			char *parent = nullptr;
-			asprintf(&parent, "%s/assets/%s", path, key);
-
-			char *temp_path = find_file(parent, item.u.str.ptr);
-			free(parent);
-
-			FILE *temp_file = fopen(temp_path, "rb");
-			if (temp_file == nullptr)
-			{
-				free(temp_path);
-				continue;
-			}
-
-			// File data
-
-			constexpr size_t buffer_size = 8192;
-			uint8_t buffer[buffer_size];
-
-			size_t read = 0;
-			while ((read = fread(buffer, sizeof(uint8_t), buffer_size, temp_file)) > 0)
-			{
-				fwrite(buffer, sizeof(uint8_t), read, out_file);
-			}
-
-			fclose(temp_file);
-
-			printf("packing: %s\n", temp_path + strlen(path) + 8);
-			free(temp_path);
+			fwrite(buffer, sizeof(uint8_t), read, out_file);
 		}
 	}
+
+	for (uint32_t i = 0; i < file_count; i++)
+	{
+		if (files[i] != nullptr)
+		{
+			fclose(files[i]);
+		}
+	}
+	free((void*) files);
 
 	toml_free(result);
 	fclose(out_file);
