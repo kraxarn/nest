@@ -240,7 +240,7 @@ static bool unpack(const char *path)
 	asprintf(&in_path, "%s/%s", path, "assets.nest");
 
 	char *out_path = nullptr;
-	asprintf(&out_path, "%s/%s", path, "assets");
+	asprintf(&out_path, "%s/%s", path, "assets.unpacked");
 
 	mkdir(out_path, 0755);
 
