@@ -253,8 +253,27 @@ static bool unpack(const char *path)
 		return false;
 	}
 
-	// Skip header
-	fseek(in_file, sizeof(uint32_t) + sizeof(uint8_t), SEEK_SET);
+	uint32_t magic = 0;
+	fread(&magic, sizeof(uint32_t), 1, in_file);
+
+	if (magic != nest_magic)
+	{
+		fprintf(stderr, "File is not a valid nest file");
+		free(in_path);
+		free(out_path);
+		return false;
+	}
+
+	uint8_t version = 0;
+	fread(&version, sizeof(uint8_t), 1, in_file);
+
+	if (version != NEST_VERSION)
+	{
+		fprintf(stderr, "Unknown nest version: %d", version);
+		free(in_path);
+		free(out_path);
+		return false;
+	}
 
 	uint32_t file_count;
 	fread(&file_count, sizeof(uint32_t), 1, in_file);
