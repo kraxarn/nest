@@ -220,6 +220,10 @@ static bool pack(const char *path)
 	for (size_t i = 0; i < file_count; i++)
 	{
 		FILE *file = files[i];
+		if (file == nullptr)
+		{
+			continue;
+		}
 
 		// File data
 		copy(file, out_file);
