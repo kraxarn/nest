@@ -20,10 +20,13 @@ jobs:
             arch: arm64
 
     steps:
+      - name: Install Checkout Dependencies
+        run: apt update && apt install -y git
+
       - uses: actions/checkout@v5
 
-      - name: Install dependencies
-        run: apt update && apt install -y git build-essential make cmake
+      - name: Install Build Dependencies
+        run: apt install -y build-essential make cmake
 
       - name: Configure CMake
         run: cmake -S . -B build -D CMAKE_BUILD_TYPE=$BUILD_TYPE
