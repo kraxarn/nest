@@ -1,0 +1,29 @@
+name: Linux
+
+on: [ push, pull_request ]
+
+env:
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    name: '${{ matrix.arch }}'
+    runs-on: ${{ matrix.os }}
+    container: ubuntu:latest
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            arch: amd64
+
+          - os: ubuntu-24.04-arm
+            arch: arm64
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Configure CMake
+        run: cmake -S . -B build -D CMAKE_BUILD_TYPE=$BUILD_TYPE
+
+      - name: Build
+        run: cmake --build build
