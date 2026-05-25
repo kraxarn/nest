@@ -284,7 +284,7 @@ static bool unpack(const char *path)
 		return false;
 	}
 
-	uint32_t file_count;
+	uint32_t file_count = 0;
 	fread(&file_count, sizeof(uint32_t), 1, in_file);
 
 	printf("found %d %s\n", file_count, file_count == 1 ? "file" : "files");

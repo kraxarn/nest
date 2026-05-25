@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.0)
-project(nest LANGUAGES C VERSION 1.0.5)
+project(nest LANGUAGES C VERSION 1.0.6)
 
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
