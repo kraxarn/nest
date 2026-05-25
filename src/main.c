@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 
 uint32_t murmur3_32(const void *data, size_t len, uint32_t seed);
 
@@ -76,6 +77,18 @@ static size_t file_size(FILE *file)
 	size = ftell(file);
 	fseek(file, 0, SEEK_SET);
 	return size;
+}
+
+static void copy(FILE *src, FILE *dst)
+{
+	constexpr size_t buffer_size = 8192;
+	uint8_t buffer[buffer_size];
+
+	size_t read = 0;
+	while ((read = fread(buffer, sizeof(uint8_t), buffer_size, src)) > 0)
+	{
+		fwrite(buffer, sizeof(uint8_t), read, dst);
+	}
 }
 
 static bool pack(const char *path)
@@ -204,15 +217,7 @@ static bool pack(const char *path)
 		FILE *file = files[i];
 
 		// File data
-
-		constexpr size_t buffer_size = 8192;
-		uint8_t buffer[buffer_size];
-
-		size_t read = 0;
-		while ((read = fread(buffer, sizeof(uint8_t), buffer_size, file)) > 0)
-		{
-			fwrite(buffer, sizeof(uint8_t), read, out_file);
-		}
+		copy(file, out_file);
 	}
 
 	for (uint32_t i = 0; i < file_count; i++)
@@ -229,16 +234,77 @@ static bool pack(const char *path)
 	return true;
 }
 
-static bool unpack()
+static bool unpack(const char *path)
 {
-	return false;
+	char *in_path = nullptr;
+	asprintf(&in_path, "%s/%s", path, "assets.nest");
+
+	char *out_path = nullptr;
+	asprintf(&out_path, "%s/%s", path, "assets");
+
+	mkdir(out_path, 0755);
+
+	FILE *in_file = fopen(in_path, "rb");
+	if (in_file == nullptr)
+	{
+		fprintf(stderr, "File not found: %s\n", in_path);
+		free(in_path);
+		free(out_path);
+		return false;
+	}
+
+	// Skip header
+	fseek(in_file, sizeof(uint32_t) + sizeof(uint8_t), SEEK_SET);
+
+	uint32_t file_count;
+	fread(&file_count, sizeof(uint32_t), 1, in_file);
+
+	printf("found %d %s\n", file_count, file_count == 1 ? "file" : "files");
+
+	for (uint32_t i = 0; i < file_count; i++)
+	{
+		uint32_t hash;
+		fread(&hash, sizeof(uint32_t), 1, in_file);
+		printf("unpacking: %x\n", hash);
+
+		uint16_t flags;
+		fread(&flags, sizeof(uint16_t), 1, in_file);
+
+		uint32_t offset;
+		fread(&offset, sizeof(uint32_t), 1, in_file);
+
+		uint32_t size;
+		fread(&size, sizeof(uint32_t), 1, in_file);
+
+		char *temp_path = nullptr;
+		asprintf(&temp_path, "%s/%x.bin", out_path, hash);
+
+		FILE *temp_file = fopen(temp_path, "wb");
+		free(temp_path);
+
+		if (temp_file == nullptr)
+		{
+			continue;
+		}
+
+		const long pos = ftell(in_file);
+		fseek(in_file, offset, SEEK_SET);
+
+		copy(in_file, temp_file);
+
+		fclose(temp_file);
+		fseek(in_file, pos, SEEK_SET);
+	}
+
+	fclose(in_file);
+	return true;
 }
 
 int main(const int argc, char **argv)
 {
 	if (argc != 3)
 	{
-		printf("usage: %s <pack/unpack> <project.toml/assets.nest>\n", argv[0]);
+		printf("usage: %s <pack/unpack> <dir>\n", argv[0]);
 		return 1;
 	}
 
@@ -249,7 +315,7 @@ int main(const int argc, char **argv)
 
 	if (strcmp(argv[1], "unpack") == 0)
 	{
-		return (int) unpack() ? 0 : 1;
+		return (int) unpack(argv[2]) ? 0 : 1;
 	}
 
 	printf("Unknown command: %s", argv[1]);
