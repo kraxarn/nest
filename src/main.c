@@ -91,10 +91,34 @@ static void copy(FILE *src, FILE *dst)
 	}
 }
 
+static void write_desc(FILE *file, const size_t size, const char *str,
+	const size_t str_len, uint32_t *offset)
+{
+	const uint32_t hash = murmur3_32(str, str_len, str_len);
+	fwrite(&hash, sizeof(uint32_t), 1, file);
+
+	constexpr uint16_t flags = 0;
+	fwrite(&flags, sizeof(uint16_t), 1, file);
+
+	fwrite(offset, sizeof(uint32_t), 1, file);
+	*offset += size;
+
+	fwrite(&size, sizeof(uint32_t), 1, file);
+}
+
 static bool pack(const char *path)
 {
 	char *in_path = nullptr;
 	asprintf(&in_path, "%s/%s", path, "project.toml");
+
+	FILE *in_file = fopen(in_path, "r");
+	free(in_path);
+
+	if (in_file == nullptr)
+	{
+		fprintf(stderr, "Failed to open output path: Error %d\n", errno);
+		return false;
+	}
 
 	char *out_path = nullptr;
 	asprintf(&out_path, "%s/%s", path, "assets.nest");
@@ -105,15 +129,15 @@ static bool pack(const char *path)
 	if (out_file == nullptr)
 	{
 		fprintf(stderr, "Failed to open output path: Error %d\n", errno);
+		fclose(in_file);
 		return false;
 	}
 
-	const toml_result_t result = toml_parse_file_ex(in_path);
-	free(in_path);
-
+	const toml_result_t result = toml_parse_file(in_file);
 	if (!result.ok)
 	{
 		fprintf(stderr, "Failed to parse project file: %s\n", result.errmsg);
+		fclose(in_file);
 		fclose(out_file);
 		return false;
 	}
@@ -122,11 +146,12 @@ static bool pack(const char *path)
 	if (assets.type != TOML_TABLE)
 	{
 		fprintf(stderr, "Invalid project: 'assets' invalid or not found\n");
+		fclose(in_file);
 		fclose(out_file);
 		return false;
 	}
 
-	uint32_t file_count = 0;
+	uint32_t file_count = 1;
 	for (int32_t i = 0; i < assets.u.tab.size; i++)
 	{
 		const toml_datum_t value = assets.u.tab.value[i];
@@ -137,12 +162,6 @@ static bool pack(const char *path)
 	}
 
 	printf("found %d %s\n", file_count, file_count == 1 ? "file" : "files");
-
-	if (file_count == 0)
-	{
-		fclose(out_file);
-		return false;
-	}
 
 	// Header
 
@@ -158,6 +177,9 @@ static bool pack(const char *path)
 
 	uint32_t offset = (sizeof(uint32_t) * 2) + sizeof(uint8_t)        // Header
 		+ (((sizeof(uint32_t) * 3) + sizeof(uint16_t)) * file_count); // File descriptions
+
+	files[current_file++] = in_file;
+	write_desc(out_file, file_size(in_file), "project", 7, &offset);
 
 	for (int32_t tt = 0; tt < assets.u.tab.size; tt++)
 	{
@@ -197,23 +219,11 @@ static bool pack(const char *path)
 				free(temp_path);
 				continue;
 			}
+			free(temp_path);
 
 			files[current_file++] = temp_file;
-			free(temp_path);
 			const uint32_t temp_size = file_size(temp_file);
-
-			// File description
-
-			const uint32_t hash = murmur3_32(item.u.str.ptr, item.u.str.len, item.u.str.len);
-			fwrite(&hash, sizeof(uint32_t), 1, out_file);
-
-			constexpr uint16_t flags = 0;
-			fwrite(&flags, sizeof(uint16_t), 1, out_file);
-
-			fwrite(&offset, sizeof(uint32_t), 1, out_file);
-			offset += temp_size;
-
-			fwrite(&temp_size, sizeof(uint32_t), 1, out_file);
+			write_desc(out_file, temp_size, item.u.str.ptr, item.u.str.len, &offset);
 		}
 	}
 
