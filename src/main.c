@@ -212,7 +212,7 @@ static bool pack(const char *path)
 		return false;
 	}
 
-	uint32_t file_count = 0;
+	uint32_t file_count = 1;
 	for (int32_t i = 0; i < assets.u.tab.size; i++)
 	{
 		const toml_datum_t value = assets.u.tab.value[i];
@@ -222,7 +222,7 @@ static bool pack(const char *path)
 		}
 	}
 
-	printf("found %d %s\n", file_count, file_count == 1 ? "file" : "files");
+	printf("found %d %s\n", file_count - 1, file_count == 2 ? "file" : "files");
 
 	// Header
 
@@ -234,7 +234,7 @@ static bool pack(const char *path)
 	fwrite(&file_count, sizeof(uint32_t), 1, out_file);
 
 	size_t current_file = 0;
-	auto files = (FILE**) calloc(file_count, sizeof(FILE*));
+	auto files = (FILE**) calloc(file_count - 1, sizeof(FILE*));
 
 	uint32_t offset = (sizeof(uint32_t) * 2) + sizeof(uint8_t)        // Header
 		+ (((sizeof(uint32_t) * 3) + sizeof(uint16_t)) * file_count); // File descriptions
@@ -292,7 +292,7 @@ static bool pack(const char *path)
 	fwrite(project_data, sizeof(char), project_size, out_file);
 	free(project_data);
 
-	for (size_t i = 0; i < file_count; i++)
+	for (size_t i = 0; i < file_count - 1; i++)
 	{
 		FILE *file = files[i];
 		if (file == nullptr)
@@ -304,7 +304,7 @@ static bool pack(const char *path)
 		copy(file, out_file);
 	}
 
-	for (uint32_t i = 0; i < file_count; i++)
+	for (uint32_t i = 0; i < file_count - 1; i++)
 	{
 		if (files[i] != nullptr)
 		{
