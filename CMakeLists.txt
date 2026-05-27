@@ -4,6 +4,10 @@ project(nest LANGUAGES C VERSION 1.0.7)
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+if(NOT CMAKE_C_BYTE_ORDER STREQUAL "LITTLE_ENDIAN")
+	message(FATAL_ERROR "Only little-endian systems are supported")
+endif ()
+
 add_executable(${PROJECT_NAME})
 
 add_subdirectory(src)
