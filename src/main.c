@@ -285,7 +285,12 @@ static bool pack(const char *path)
 
 			files[current_file++] = temp_file;
 			const uint32_t temp_size = file_size(temp_file);
-			write_desc(out_file, temp_size, item.u.str.ptr, item.u.str.len, &offset);
+
+			char *temp_str = nullptr;
+			const int name_len = asprintf(&temp_str, "%s/%s", key, item.u.str.ptr);
+
+			write_desc(out_file, temp_size, temp_str, name_len, &offset);
+			free(temp_str);
 		}
 	}
 
