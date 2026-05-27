@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 4.0)
-project(nest LANGUAGES C VERSION 1.0.7)
+project(nest LANGUAGES C VERSION 1.1.0)
 
 set(CMAKE_C_STANDARD 23)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -21,3 +21,4 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 )
 
 include(deps/tomlc17.cmake)
+include(deps/jansson.cmake)

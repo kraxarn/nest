@@ -8,6 +8,8 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include <jansson.h>
+
 uint32_t murmur3_32(const void *data, size_t len, uint32_t seed);
 
 static constexpr uint32_t nest_magic = ((uint8_t) 'n') << 0
@@ -106,6 +108,65 @@ static void write_desc(FILE *file, const size_t size, const char *str,
 	fwrite(&size, sizeof(uint32_t), 1, file);
 }
 
+static char *project(const toml_datum_t table, size_t *size)
+{
+	const toml_datum_t *window_size = toml_seek(table, "window.size").u.arr.elem;
+
+	json_t *json = json_pack("{s{ss, ss, ss, ss, ss, ss, ss}, s{ss, s[i, i], sb, ss}}",
+		"met",
+		"nam", toml_seek(table, "metadata.name").u.s,
+		"ver", toml_seek(table, "metadata.version").u.s,
+		"ide", toml_seek(table, "metadata.identifier").u.s,
+		"cre", toml_seek(table, "metadata.creator").u.s,
+		"cop", toml_seek(table, "metadata.copyright").u.s,
+		"url", toml_seek(table, "metadata.url").u.s,
+		"typ", toml_seek(table, "metadata.type").u.s,
+		"win",
+		"tit", toml_seek(table, "window.title").u.s,
+		"siz", window_size[0].u.int64, window_size[1].u.int64,
+		"ful", (int) toml_seek(table, "window.fullscreen").u.boolean,
+		"ico", toml_seek(table, "window.icon").u.s,
+		"run",
+		"sce", toml_seek(table, "run.scene").u.s
+	);
+
+	const toml_datum_t input = toml_seek(table, "input");
+	json_t *inp = json_object();
+
+	for (int32_t t1 = 0; t1 < input.u.tab.size; t1++)
+	{
+		const char *key = input.u.tab.key[t1];
+		const toml_datum_t value = input.u.tab.value[t1];
+
+		json_t *inp_value = json_pack("{ss*, ss*, ss*}",
+			"key", toml_get(value, "keycode").u.s,
+			"mou", toml_get(value, "mouse").u.s,
+			"axi", toml_get(value, "axis").u.s
+		);
+
+		const toml_datum_t axis_range = toml_get(value, "axis_range");
+		if (axis_range.type == TOML_ARRAY)
+		{
+			json_object_set(inp_value, "ara", json_pack("[f, f]",
+				axis_range.u.arr.elem[0].u.fp64,
+				axis_range.u.arr.elem[1].u.fp64
+			));
+		}
+
+		json_object_set(inp, key, inp_value);
+	}
+
+	json_object_set(json, "inp", inp);
+
+	constexpr size_t flags = JSON_COMPACT;
+	*size = json_dumpb(json, nullptr, 0, flags);
+	char *buffer = malloc(*size);
+	json_dumpb(json, buffer, *size, flags);
+
+	json_decref(json);
+	return buffer;
+}
+
 static bool pack(const char *path)
 {
 	char *in_path = nullptr;
@@ -151,7 +212,7 @@ static bool pack(const char *path)
 		return false;
 	}
 
-	uint32_t file_count = 1;
+	uint32_t file_count = 0;
 	for (int32_t i = 0; i < assets.u.tab.size; i++)
 	{
 		const toml_datum_t value = assets.u.tab.value[i];
@@ -178,8 +239,9 @@ static bool pack(const char *path)
 	uint32_t offset = (sizeof(uint32_t) * 2) + sizeof(uint8_t)        // Header
 		+ (((sizeof(uint32_t) * 3) + sizeof(uint16_t)) * file_count); // File descriptions
 
-	files[current_file++] = in_file;
-	write_desc(out_file, file_size(in_file), "project", 7, &offset);
+	size_t project_size = 0;
+	char *project_data = project(result.toptab, &project_size);
+	write_desc(out_file, project_size, "project", 7, &offset);
 
 	for (int32_t tt = 0; tt < assets.u.tab.size; tt++)
 	{
@@ -226,6 +288,9 @@ static bool pack(const char *path)
 			write_desc(out_file, temp_size, item.u.str.ptr, item.u.str.len, &offset);
 		}
 	}
+
+	fwrite(project_data, sizeof(char), project_size, out_file);
+	free(project_data);
 
 	for (size_t i = 0; i < file_count; i++)
 	{
