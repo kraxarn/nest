@@ -366,17 +366,17 @@ static bool unpack(const char *path)
 
 	for (uint32_t i = 0; i < file_count; i++)
 	{
-		uint32_t hash;
+		uint32_t hash = 0;
 		fread(&hash, sizeof(uint32_t), 1, in_file);
 		printf("unpacking: %x\n", hash);
 
-		uint16_t flags;
+		uint16_t flags = 0;
 		fread(&flags, sizeof(uint16_t), 1, in_file);
 
-		uint32_t offset;
+		uint32_t offset = 0;
 		fread(&offset, sizeof(uint32_t), 1, in_file);
 
-		uint32_t size;
+		uint32_t size = 0;
 		fread(&size, sizeof(uint32_t), 1, in_file);
 
 		char *temp_path = nullptr;
@@ -393,7 +393,10 @@ static bool unpack(const char *path)
 		const long pos = ftell(in_file);
 		fseek(in_file, offset, SEEK_SET);
 
-		copy(in_file, temp_file);
+		uint8_t *buffer = malloc(size);
+		fread(buffer, sizeof(uint8_t), size, in_file);
+		fwrite(buffer, sizeof(uint8_t), size, temp_file);
+		free(buffer);
 
 		fclose(temp_file);
 		fseek(in_file, pos, SEEK_SET);
