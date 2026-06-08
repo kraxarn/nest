@@ -262,7 +262,7 @@ static bool pack(const char *path)
 			}
 
 			char *parent = nullptr;
-			asprintf(&parent, "%s/assets/%s", path, key);
+			asprintf(&parent, "%s/%s", path, key);
 
 			char *temp_path = find_file(parent, item.u.str.ptr);
 			free(parent);
