@@ -1,3 +1,4 @@
+#include "pocketpy.h"
 #include "tomlc17.h"
 
 #include <dirent.h>
@@ -27,7 +28,8 @@ static bool supported_file(const char *filename)
 	const size_t len = strlen(filename);
 
 	return has_ext(".qoi")
-		|| has_ext(".glb");
+		|| has_ext(".glb")
+		|| has_ext(".py");
 
 #undef has_ext
 #undef str_len
@@ -264,24 +266,46 @@ static bool pack(const char *path)
 			char *parent = nullptr;
 			asprintf(&parent, "%s/%s", path, key);
 
-			char *temp_path = find_file(parent, item.u.str.ptr);
+			char *src_path = find_file(parent, item.u.str.ptr);
 			free(parent);
 
-			if (temp_path == nullptr)
+			if (src_path == nullptr)
 			{
 				fprintf(stderr, "file not found: %s/%s\n", key, item.u.str.ptr);
 				continue;
 			}
 
-			printf("packing: %s\n", temp_path + strlen(path) + 8);
+			printf("packing: %s\n", src_path + strlen(path));
 
-			FILE *temp_file = fopen(temp_path, "rb");
+			if (strcmp(key, "scripts") == 0)
+			{
+				const size_t dst_path_len = strlen(src_path) + 2;
+				char *dst_path = calloc(dst_path_len, sizeof(char));
+				strlcpy(dst_path, src_path, dst_path_len);
+				dst_path[dst_path_len - 2] = 'c';
+
+				py_initialize();
+				if (!py_compilefile(src_path, dst_path))
+				{
+					fprintf(stderr, "Compilation failed");
+					py_finalize();
+					free(dst_path);
+					free(src_path);
+					continue;
+				}
+				py_finalize();
+
+				free(src_path);
+				src_path = dst_path;
+			}
+
+			FILE *temp_file = fopen(src_path, "rb");
 			if (temp_file == nullptr)
 			{
-				free(temp_path);
+				free(src_path);
 				continue;
 			}
-			free(temp_path);
+			free(src_path);
 
 			files[current_file++] = temp_file;
 			const uint32_t temp_size = file_size(temp_file);
@@ -297,7 +321,7 @@ static bool pack(const char *path)
 	fwrite(project_data, sizeof(char), project_size, out_file);
 	free(project_data);
 
-	for (size_t i = 0; i < file_count - 1; i++)
+	for (uint32_t i = 0; i < file_count - 1; i++)
 	{
 		FILE *file = files[i];
 		if (file == nullptr)
