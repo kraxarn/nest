@@ -13,6 +13,9 @@
 
 uint32_t murmur3_32(const void *data, size_t len, uint32_t seed);
 
+typedef struct CodeObject CodeObject;
+void *CodeObject__dumps(const CodeObject *co, int *size);
+
 static constexpr uint32_t nest_magic = ((uint8_t) 'n') << 0
 	| ((uint8_t) 'e') << 8
 	| ((uint8_t) 's') << 16
@@ -279,23 +282,56 @@ static bool pack(const char *path)
 
 			if (strcmp(key, "scripts") == 0)
 			{
+				FILE *src_file = fopen(src_path, "rb");
+				if (src_file == nullptr)
+				{
+					free(src_path);
+					continue;
+				}
+
+				const uint32_t buffer_len = file_size(src_file) + 1;
+				char *buffer = malloc(buffer_len);
+
+				fread(buffer, sizeof(char), buffer_len - 1, src_file);
+				fclose(src_file);
+				buffer[buffer_len - 1] = '\0';
+
+				py_initialize();
+				if (!py_compile(buffer, item.u.str.ptr, EXEC_MODE, false))
+				{
+					fprintf(stderr, "Compilation failed");
+					py_finalize();
+					free(src_path);
+					free(buffer);
+					continue;
+				}
+				free(buffer);
+
+				py_assign(py_pushtmp(), py_retval());
+				int pyc_size = 0;
+				void *pyc_data = CodeObject__dumps(py_touserdata(py_peek(-1)), &pyc_size);
+				py_pop();
+				py_finalize();
+
 				const size_t dst_path_len = strlen(src_path) + 2;
 				char *dst_path = calloc(dst_path_len, sizeof(char));
 				strlcpy(dst_path, src_path, dst_path_len);
 				dst_path[dst_path_len - 2] = 'c';
 
-				py_initialize();
-				if (!py_compilefile(src_path, dst_path))
+				FILE *dst_file = fopen(dst_path, "wb");
+				if (dst_file == nullptr)
 				{
 					fprintf(stderr, "Compilation failed");
-					py_finalize();
-					free(dst_path);
 					free(src_path);
+					free(dst_path);
+					free(pyc_data);
 					continue;
 				}
-				py_finalize();
 
-				free(src_path);
+				fwrite(pyc_data, sizeof(char), pyc_size, dst_file);
+				fclose(dst_file);
+
+				free(pyc_data);
 				src_path = dst_path;
 			}
 
