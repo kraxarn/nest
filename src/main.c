@@ -165,7 +165,10 @@ static char *project(const toml_datum_t table, size_t *size)
 			"axi", toml_get(value, "axis").u.s
 		);
 
-		json_object_set(inp_value, "key", keycodes);
+		if (json_array_size(keycodes) > 0)
+		{
+			json_object_set(inp_value, "key", keycodes);
+		}
 
 		const toml_datum_t axis_range = toml_get(value, "axis_range");
 		if (axis_range.type == TOML_ARRAY)
