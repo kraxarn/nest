@@ -143,11 +143,29 @@ static char *project(const toml_datum_t table, size_t *size)
 		const char *key = input.u.tab.key[t1];
 		const toml_datum_t value = input.u.tab.value[t1];
 
-		json_t *inp_value = json_pack("{ss*, ss*, ss*}",
-			"key", toml_get(value, "keycode").u.s,
+		const toml_datum_t toml_keycode = toml_get(value, "keycode");
+		json_t *keycodes = json_array();
+
+		if (toml_keycode.type == TOML_STRING)
+		{
+			json_array_append(keycodes, json_string(toml_keycode.u.s));
+		}
+		else if (toml_keycode.type == TOML_ARRAY)
+		{
+			const auto toml_keycodes = toml_keycode.u.arr;
+			for (int32_t i = 0; i < toml_keycodes.size; i++)
+			{
+				const toml_datum_t val = toml_keycodes.elem[i];
+				json_array_append(keycodes, json_string(val.u.s));
+			}
+		}
+
+		json_t *inp_value = json_pack("{ss*, ss*}",
 			"mou", toml_get(value, "mouse").u.s,
 			"axi", toml_get(value, "axis").u.s
 		);
+
+		json_object_set(inp_value, "key", keycodes);
 
 		const toml_datum_t axis_range = toml_get(value, "axis_range");
 		if (axis_range.type == TOML_ARRAY)
