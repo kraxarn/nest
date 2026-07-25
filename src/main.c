@@ -22,20 +22,52 @@ static constexpr uint32_t nest_magic = ((uint8_t) 'n') << 0
 	| ((uint8_t) 't') << 24;
 
 [[nodiscard]]
+static bool has_extension(const char *filename, const char *ext)
+{
+	const size_t filename_path = strlen(filename);
+	const size_t ext_len = strlen(ext);
+
+	return (bool) (filename_path >= ext_len
+		&& strcmp(filename + filename_path - ext_len, ext) == 0);
+}
+
+[[nodiscard]]
 static bool supported_file(const char *filename)
 {
-	// I'm not sure if I like this, but it looks cool
-#define str_len(s) ((sizeof(s) / sizeof((s)[0])) - sizeof((s)[0]))
-#define has_ext(e) (len >= str_len(e) && strcmp(filename + len - str_len(e), e) == 0)
+	return (bool) (has_extension(filename, ".qoi")
+		|| has_extension(filename, ".gltf")
+		|| has_extension(filename, ".py"));
+}
 
-	const size_t len = strlen(filename);
+[[nodiscard]]
+static void *read_file(FILE *file)
+{
+	fseek(file, 0, SEEK_END);
+	const long size = ftell(file);
+	fseek(file, 0, SEEK_SET);
 
-	return has_ext(".qoi")
-		|| has_ext(".glb")
-		|| has_ext(".py");
+	char *buffer = malloc(size + 1);
+	fread(buffer, size, 1, file);
+	buffer[size] = '\0';
 
-#undef has_ext
-#undef str_len
+	return buffer;
+}
+
+[[nodiscard]]
+static char *parent_path(const char *path)
+{
+	const char *sep = strrchr(path, '/');
+	if (sep == nullptr)
+	{
+		return nullptr;
+	}
+
+	const size_t temp_size = sep - path + 1;
+	char *temp = malloc(temp_size);
+	memcpy(temp, path, temp_size);
+	temp[temp_size - 1] = '\0';
+
+	return temp;
 }
 
 [[nodiscard]]
@@ -360,6 +392,105 @@ static bool pack(const char *path)
 
 				free(pyc_data);
 				src_path = dst_path;
+			}
+			else if (has_extension(src_path, ".gltf"))
+			{
+				FILE *gltf_file = fopen(src_path, "r");
+				if (gltf_file == nullptr)
+				{
+					fprintf(stderr, "failed to open '%s'\n", src_path);
+					free(src_path);
+					free(item_name);
+					continue;
+				}
+
+				void *gltf_data = read_file(gltf_file);
+				fclose(gltf_file);
+
+				json_t *gltf = json_loads(gltf_data, 0, nullptr);
+				free(gltf_data);
+
+				if (gltf == nullptr)
+				{
+					fprintf(stderr, "failed to parse '%s'\n", src_path);
+					free(src_path);
+					free(item_name);
+					continue;
+				}
+
+				json_t *buffers = json_object_get(gltf, "buffers");
+				if (buffers != nullptr)
+				{
+					json_t *buffer = json_array_get(buffers, 0);
+					json_t *uri = json_object_get(buffer, "uri");
+
+					char *full_parent = parent_path(src_path);
+					parent = parent_path(src_path + strlen(path));
+
+					char *full_path = nullptr;
+					asprintf(&full_path, "%s/%s", full_parent, json_string_value(uri));
+
+					char *uri_value = strdup(json_string_value(uri));
+					*strrchr(uri_value, '.') = '\0';
+
+					char *buffer_name = nullptr;
+					asprintf(&buffer_name, "models/buffers/%s", uri_value);
+
+					printf("packing: %s/%s -> %s\n", parent,
+						json_string_value(uri), buffer_name);
+
+					FILE *temp_file = fopen(full_path, "rb");
+					const size_t temp_size = file_size(temp_file);
+
+					write_desc(out_file, temp_size, buffer_name, strlen(buffer_name), &offset);
+
+					files = (FILE**) reallocarray((void*) files, file_count++, sizeof(FILE*));
+					files[current_file++] = temp_file;
+
+					free(full_parent);
+					free(parent);
+					free(full_path);
+					free(uri_value);
+					free(buffer_name);
+				}
+
+				json_t *images = json_object_get(gltf, "images");
+				if (images != nullptr)
+				{
+					json_t *image = json_array_get(images, 0);
+					json_t *uri = json_object_get(image, "uri");
+
+					char *full_parent = parent_path(src_path);
+					parent = parent_path(src_path + strlen(path));
+
+					char *full_path = nullptr;
+					asprintf(&full_path, "%s/%s", full_parent, json_string_value(uri));
+
+					char *uri_value = strdup(json_string_value(uri));
+					*strrchr(uri_value, '.') = '\0';
+
+					char *buffer_name = nullptr;
+					asprintf(&buffer_name, "models/images/%s", uri_value);
+
+					printf("packing: %s/%s -> %s\n", parent,
+						json_string_value(uri), buffer_name);
+
+					FILE *temp_file = fopen(full_path, "rb");
+					const size_t temp_size = file_size(temp_file);
+
+					write_desc(out_file, temp_size, buffer_name, strlen(buffer_name), &offset);
+
+					files = (FILE**) reallocarray((void*) files, file_count++, sizeof(FILE*));
+					files[current_file++] = temp_file;
+
+					free(full_parent);
+					free(parent);
+					free(full_path);
+					free(uri_value);
+					free(buffer_name);
+				}
+
+				json_decref(gltf);
 			}
 
 			FILE *temp_file = fopen(src_path, "rb");
