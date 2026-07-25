@@ -299,7 +299,10 @@ static bool pack(const char *path)
 				continue;
 			}
 
-			printf("packing: %s\n", src_path + strlen(path));
+			char *item_name = nullptr;
+			const int item_name_len = asprintf(&item_name, "%s/%s", key, item.u.str.ptr);
+
+			printf("packing: %s -> %s\n", src_path + strlen(path), item_name);
 
 			if (strcmp(key, "scripts") == 0)
 			{
@@ -307,6 +310,7 @@ static bool pack(const char *path)
 				if (src_file == nullptr)
 				{
 					free(src_path);
+					free(item_name);
 					continue;
 				}
 
@@ -324,6 +328,7 @@ static bool pack(const char *path)
 					py_finalize();
 					free(src_path);
 					free(buffer);
+					free(item_name);
 					continue;
 				}
 				free(buffer);
@@ -346,6 +351,7 @@ static bool pack(const char *path)
 					free(src_path);
 					free(dst_path);
 					free(pyc_data);
+					free(item_name);
 					continue;
 				}
 
@@ -360,6 +366,7 @@ static bool pack(const char *path)
 			if (temp_file == nullptr)
 			{
 				free(src_path);
+				free(item_name);
 				continue;
 			}
 			free(src_path);
@@ -367,11 +374,8 @@ static bool pack(const char *path)
 			files[current_file++] = temp_file;
 			const uint32_t temp_size = file_size(temp_file);
 
-			char *temp_str = nullptr;
-			const int name_len = asprintf(&temp_str, "%s/%s", key, item.u.str.ptr);
-
-			write_desc(out_file, temp_size, temp_str, name_len, &offset);
-			free(temp_str);
+			write_desc(out_file, temp_size, item_name, item_name_len, &offset);
+			free(item_name);
 		}
 	}
 
