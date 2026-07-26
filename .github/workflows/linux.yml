@@ -2,9 +2,6 @@ name: Linux
 
 on: [ push, pull_request ]
 
-env:
-  BUILD_TYPE: Release
-
 jobs:
   build:
     name: '${{ matrix.arch }}'
@@ -20,16 +17,12 @@ jobs:
             arch: arm64
 
     steps:
-      - name: Install Checkout Dependencies
-        run: apt update && apt install -y git
-
       - uses: actions/checkout@v5
 
-      - name: Install Build Dependencies
-        run: apt install -y build-essential make cmake
-
-      - name: Configure CMake
-        run: cmake -S . -B build -D CMAKE_BUILD_TYPE=$BUILD_TYPE
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: 'stable'
 
       - name: Build
-        run: cmake --build build
+        run: go build -v ./...
