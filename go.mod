@@ -1,4 +1,4 @@
-module nest-go
+module nest
 
 go 1.26
 
