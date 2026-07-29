@@ -28,6 +28,7 @@ type ProjectInputConfig map[string]struct {
 	Mouse     string    `toml:"mouse"      json:"mou,omitempty"`
 	Axis      string    `toml:"axis"       json:"axi,omitempty"`
 	AxisRange []float32 `toml:"axis_range" json:"ara,omitempty"`
+	Gamepad   string    `toml:"gamepad"    json:"gam,omitempty"`
 }
 
 type Project struct {
